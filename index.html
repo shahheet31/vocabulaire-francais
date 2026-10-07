@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Vocabulaire Français</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root {
+      --bg:#f7f8fa; --card:#fff; --text:#202124; --muted:#5f6368;
+      --line:#dadce0; --accent:#1a73e8; --danger:#d93025;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
+    header{background:white;border-bottom:1px solid var(--line);padding:18px 22px}
+    h1{margin:0 0 4px;font-size:24px}.sub{color:var(--muted);font-size:14px}
+    main{max-width:1100px;margin:auto;padding:22px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+    .hidden{display:none!important}
+    nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+    button{border:0;border-radius:8px;padding:10px 14px;background:var(--accent);color:white;font-weight:700;cursor:pointer}
+    button.secondary{background:#5f6368}button.danger{background:var(--danger)}
+    .row{display:flex;gap:12px;flex-wrap:wrap}.grow{flex:1 1 220px}
+    label{display:block;font-size:13px;font-weight:700;margin:10px 0 5px}
+    input,select,textarea{width:100%;padding:10px;border:1px solid #c7c7c7;border-radius:8px;font:inherit;background:white}
+    textarea{min-height:75px;resize:vertical}
+    .entry{border-top:1px solid var(--line);padding:14px 0}.entry:first-child{border-top:0}
+    .meta{font-size:12px;color:var(--muted);margin-top:5px}
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef3fd;font-size:12px;margin-right:6px}
+    .actions{display:flex;gap:8px;margin-top:10px}
+    .conjrow{display:flex;gap:10px;align-items:flex-start;margin:8px 0}
+    .pronoun{font-weight:700;flex:0 0 95px;padding-top:10px}
+    .conjrow>div:not(.pronoun){flex:1}
+    #status.error{color:var(--danger)}
+    #bridgeFrame{position:absolute;width:1px;height:1px;border:0;left:-9999px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Vocabulaire Français</h1>
+  <div class="sub">Collaborative French dictionary for the class</div>
+</header>
+
+<iframe id="bridgeFrame" src="https://script.google.com/macros/s/AKfycbwwSainXaWJIt3BH18_CAalg1hNRXekqtsDRxmUpzExlMLpuGnmKpWkORNwn2sA0vwf/exec" title="backend"></iframe>
+
+<main>
+  <section id="signinCard" class="card">
+    <h2>Sign in with Google</h2>
+    <p>Your Google account becomes the owner of everything you contribute.</p>
+    <div id="googleSignIn"></div>
+    <div id="signinStatus" class="meta">Connecting to the class dictionary…</div>
+  </section>
+
+  <div id="app" class="hidden">
+    <div class="card">
+      Signed in as <strong id="who"></strong>
+      <span id="adminBadge" class="pill hidden">Admin</span>
+      <div id="status" class="meta"></div>
+    </div>
+
+    <nav>
+      <button onclick="showView('addVerb')">Add verb</button>
+      <button onclick="showView('addVocab')">Add vocabulary</button>
+      <button onclick="showView('myEntries')">My entries</button>
+      <button onclick="showView('dictionary')">Class dictionary</button>
+    </nav>
+
+    <section id="addVerb" class="view card">
+      <h2 id="verbTitle">Add a verb</h2>
+      <input type="hidden" id="verbId">
+      <div class="row">
+        <div class="grow">
+          <label>Group</label>
+          <select id="verbGroup">
+            <option>1er groupe</option>
+            <option>2e groupe</option>
+            <option>3e groupe</option>
+          </select>
+        </div>
+        <div class="grow">
+          <label>Infinitive</label>
+          <input id="verbInfinitive" placeholder="parler">
+        </div>
+      </div>
+
+      <label>Comments</label>
+      <textarea id="verbComments" placeholder="Rule, exception, usage..."></textarea>
+
+      <h3>Conjugations + your own French sentences</h3>
+      <div id="conjugationRows"></div>
+
+      <div class="actions">
+        <button onclick="saveVerb()">Save verb</button>
+        <button class="secondary" onclick="resetVerb()">Clear</button>
+      </div>
+    </section>
+
+    <section id="addVocab" class="view card hidden">
+      <h2 id="vocabTitle">Add vocabulary</h2>
+      <input type="hidden" id="vocabId">
+
+      <label>French word / expression</label>
+      <input id="vocabWord" placeholder="une chaise">
+
+      <label>French sentence 1 (optional)</label>
+      <textarea id="vocabS1"></textarea>
+
+      <label>French sentence 2 (optional)</label>
+      <textarea id="vocabS2"></textarea>
+
+      <label>Notes / comments</label>
+      <textarea id="vocabNotes"></textarea>
+
+      <div class="actions">
+        <button onclick="saveVocab()">Save vocabulary</button>
+        <button class="secondary" onclick="resetVocab()">Clear</button>
+      </div>
+    </section>
+
+    <section id="myEntries" class="view card hidden">
+      <h2>My entries</h2>
+      <div id="myList"></div>
+    </section>
+
+    <section id="dictionary" class="view card hidden">
+      <h2>Class dictionary</h2>
+      <label>Search</label>
+      <input id="search" oninput="renderDictionary()" placeholder="Search verb, word, sentence, contributor...">
+      <div id="dictionaryList"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const CLIENT_ID = '925560036817-238e5e8pbstvl7r12fu374t6b30s2msr.apps.googleusercontent.com';
+const PRONOUNS = ['Je','Tu','Il / Elle','Nous','Vous','Ils / Elles'];
+
+let bridgeReady = false;
+let idToken = '';
+let data = null;
+let requestSeq = 0;
+const pending = new Map();
+
+window.addEventListener('message', event => {
+  if (!(
+    event.origin === 'https://script.google.com' ||
+    event.origin.endsWith('.googleusercontent.com')
+  )) return;
+
+  const msg = event.data || {};
+
+  if (msg.type === 'VF_BRIDGE_READY') {
+    bridgeReady = true;
+    document.getElementById('signinStatus').textContent =
+      'Backend connected. Sign in to continue.';
+    return;
+  }
+
+  if (msg.type === 'VF_RESPONSE' && pending.has(msg.id)) {
+    const handlers = pending.get(msg.id);
+    pending.delete(msg.id);
+    if (msg.ok) handlers.resolve(msg.result);
+    else handlers.reject(new Error(msg.error || 'Unknown error'));
+  }
+});
+
+function bridgeCall(action, ...args) {
+  if (!bridgeReady) {
+    return Promise.reject(
+      new Error('Backend is still loading. Try again in a moment.')
+    );
+  }
+
+  const id = ++requestSeq;
+  const frame = document.getElementById('bridgeFrame');
+
+  return new Promise((resolve, reject) => {
+    pending.set(id, {resolve, reject});
+
+    frame.contentWindow.postMessage({
+      type:'VF_REQUEST',
+      id:id,
+      action:action,
+      args:args
+    }, '*');
+
+    setTimeout(() => {
+      if (pending.has(id)) {
+        pending.delete(id);
+        reject(new Error('Backend request timed out.'));
+      }
+    }, 20000);
+  });
+}
+
+window.onload = () => {
+  buildConjugationRows();
+
+  google.accounts.id.initialize({
+    client_id: CLIENT_ID,
+    callback: onCredential,
+    auto_select: false
+  });
+
+  google.accounts.id.renderButton(
+    document.getElementById('googleSignIn'),
+    {theme:'outline', size:'large', text:'signin_with', shape:'rectangular'}
+  );
+};
+
+async function onCredential(response) {
+  idToken = response.credential;
+
+  try {
+    document.getElementById('signinStatus').textContent = 'Signing you in…';
+    data = await bridgeCall('getBootstrapData', idToken);
+
+    document.getElementById('signinCard').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('who').textContent =
+      (data.user.name || '') + ' (' + data.user.email + ')';
+
+    document.getElementById('adminBadge')
+      .classList.toggle('hidden', !data.isAdmin);
+
+    renderAll();
+  } catch (e) {
+    document.getElementById('signinStatus').textContent = e.message;
+  }
+}
+
+function buildConjugationRows() {
+  const wrap = document.getElementById('conjugationRows');
+
+  PRONOUNS.forEach((p,i) => {
+    const div = document.createElement('div');
+    div.className = 'conjrow';
+
+    div.innerHTML =
+      '<div class="pronoun">' + esc(p) + '</div>' +
+      '<div><input id="conj' + i + '" placeholder="Conjugation"></div>' +
+      '<div><textarea id="sent' + i + '" placeholder="Your French sentence"></textarea></div>';
+
+    wrap.appendChild(div);
+  });
+}
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(x => x.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+async function saveVerb() {
+  try {
+    setStatus('Saving verb…');
+
+    const payload = {
+      id: val('verbId') || null,
+      group: val('verbGroup'),
+      infinitive: val('verbInfinitive').trim(),
+      comments: val('verbComments'),
+      conjugations: PRONOUNS.map((_,i) => ({
+        conjugation: val('conj' + i),
+        sentence: val('sent' + i)
+      }))
+    };
+
+    await bridgeCall('saveVerb', idToken, payload);
+    await refresh('Verb saved.');
+    showView('myEntries');
+  } catch(e) {
+    showError(e);
+  }
+}
+
+async function saveVocab() {
+  try {
+    setStatus('Saving vocabulary…');
+
+    const payload = {
+      id: val('vocabId') || null,
+      word: val('vocabWord').trim(),
+      sentence1: val('vocabS1'),
+      sentence2: val('vocabS2'),
+      notes: val('vocabNotes')
+    };
+
+    await bridgeCall('saveVocab', idToken, payload);
+    await refresh('Vocabulary saved.');
+    showView('myEntries');
+  } catch(e) {
+    showError(e);
+  }
+}
+
+async function refresh(message) {
+  data = await bridgeCall('getBootstrapData', idToken);
+  resetVerb();
+  resetVocab();
+  renderAll();
+  setStatus(message);
+}
+
+function renderAll() {
+  renderMy();
+  renderDictionary();
+}
+
+function renderMy() {
+  const el = document.getElementById('myList');
+  const verbs = data.myVerbs.map(v => verbCard(v,true)).join('');
+  const vocab = data.myVocab.map(v => vocabCard(v,true)).join('');
+
+  el.innerHTML =
+    '<h3>Verbs</h3>' + (verbs || '<p>No verb entries yet.</p>') +
+    '<h3>Vocabulary</h3>' + (vocab || '<p>No vocabulary entries yet.</p>');
+}
+
+function renderDictionary() {
+  if (!data) return;
+
+  const q = val('search').trim().toLowerCase();
+  const items = [];
+
+  data.verbs.forEach(v => {
+    const hay = [
+      v.infinitive, v.group, v.comments, v.contributor
+    ].concat(
+      v.conjugations.flatMap(c => [c.conjugation,c.sentence,c.translation])
+    ).join(' ').toLowerCase();
+
+    if (!q || hay.includes(q)) items.push(verbCard(v,false));
+  });
+
+  data.vocab.forEach(v => {
+    const hay = [
+      v.word,v.translation,v.sentence1,v.translation1,
+      v.sentence2,v.translation2,v.notes,v.contributor
+    ].join(' ').toLowerCase();
+
+    if (!q || hay.includes(q)) items.push(vocabCard(v,false));
+  });
+
+  document.getElementById('dictionaryList').innerHTML =
+    items.join('') || '<p>No matches.</p>';
+}
+
+function verbCard(v,my) {
+  const rows = v.conjugations.map(c => {
+    let line = '<div><strong>' + esc(c.pronoun) + '</strong>: ' +
+      esc(c.conjugation);
+
+    if (c.sentence) {
+      line += ' — ' + esc(c.sentence) +
+        ' <span class="meta">(' + esc(c.translation) + ')</span>';
+    }
+
+    return line + '</div>';
+  }).join('');
+
+  let actions = '';
+
+  if (v.canEdit && my) {
+    actions =
+      '<div class="actions">' +
+      '<button onclick="editVerbById(' + v.id + ')">Edit</button>' +
+      '<button class="danger" onclick="removeEntry(\'verbs\',' + v.id + ')">Delete</button>' +
+      '</div>';
+  }
+
+  return '<div class="entry">' +
+    '<span class="pill">' + esc(v.group) + '</span>' +
+    '<strong>' + esc(v.infinitive) + '</strong>' +
+    rows +
+    '<div class="meta">Added by ' + esc(v.contributor || '—') +
+    ' · ' + esc(v.createdAt || '') + '</div>' +
+    actions +
+    '</div>';
+}
+
+function vocabCard(v,my) {
+  let actions = '';
+
+  if (v.canEdit && my) {
+    actions =
+      '<div class="actions">' +
+      '<button onclick="editVocabById(' + v.id + ')">Edit</button>' +
+      '<button class="danger" onclick="removeEntry(\'vocab\',' + v.id + ')">Delete</button>' +
+      '</div>';
+  }
+
+  return '<div class="entry">' +
+    '<strong>' + esc(v.word) + '</strong> — ' + esc(v.translation) +
+    (v.sentence1 ? '<div>' + esc(v.sentence1) +
+      ' <span class="meta">(' + esc(v.translation1) + ')</span></div>' : '') +
+    (v.sentence2 ? '<div>' + esc(v.sentence2) +
+      ' <span class="meta">(' + esc(v.translation2) + ')</span></div>' : '') +
+    (v.notes ? '<div class="meta">' + esc(v.notes) + '</div>' : '') +
+    '<div class="meta">Added by ' + esc(v.contributor || '—') +
+    ' · ' + esc(v.createdAt || '') + '</div>' +
+    actions +
+    '</div>';
+}
+
+function editVerbById(id) {
+  const v = data.myVerbs.find(x => Number(x.id) === Number(id));
+  if (!v) return;
+
+  showView('addVerb');
+  document.getElementById('verbTitle').textContent = 'Edit verb';
+
+  setv('verbId',v.id);
+  setv('verbGroup',v.group);
+  setv('verbInfinitive',v.infinitive);
+  setv('verbComments',v.comments);
+
+  v.conjugations.forEach((c,i) => {
+    setv('conj' + i,c.conjugation);
+    setv('sent' + i,c.sentence);
+  });
+}
+
+function editVocabById(id) {
+  const v = data.myVocab.find(x => Number(x.id) === Number(id));
+  if (!v) return;
+
+  showView('addVocab');
+  document.getElementById('vocabTitle').textContent = 'Edit vocabulary';
+
+  setv('vocabId',v.id);
+  setv('vocabWord',v.word);
+  setv('vocabS1',v.sentence1);
+  setv('vocabS2',v.sentence2);
+  setv('vocabNotes',v.notes);
+}
+
+function resetVerb() {
+  setv('verbId','');
+  setv('verbInfinitive','');
+  setv('verbComments','');
+
+  PRONOUNS.forEach((_,i) => {
+    setv('conj' + i,'');
+    setv('sent' + i,'');
+  });
+
+  document.getElementById('verbTitle').textContent = 'Add a verb';
+}
+
+function resetVocab() {
+  ['vocabId','vocabWord','vocabS1','vocabS2','vocabNotes']
+    .forEach(x => setv(x,''));
+
+  document.getElementById('vocabTitle').textContent = 'Add vocabulary';
+}
+
+async function removeEntry(kind,id) {
+  if (!confirm('Delete this entry?')) return;
+
+  try {
+    setStatus('Deleting…');
+    await bridgeCall('deleteEntry', idToken, kind, id);
+    await refresh('Entry deleted.');
+  } catch(e) {
+    showError(e);
+  }
+}
+
+function setStatus(text, error=false) {
+  const el = document.getElementById('status');
+  el.textContent = text || '';
+  el.classList.toggle('error', error);
+}
+
+function showError(e) {
+  setStatus(e && e.message ? e.message : String(e), true);
+}
+
+function val(id) {
+  return document.getElementById(id).value;
+}
+
+function setv(id,v) {
+  document.getElementById(id).value = v || '';
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, m => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#039;'
+  }[m]));
+}
+</script>
+</body>
+</html>
